@@ -50,8 +50,9 @@
                     return $response_array;
                 }
 
-                function prepares($mysqli ,&$stmt_select, &$stmt_update, &$stmt_new, &$stmt_date)
+                function prepares($mysqli)
                 {
+                   
                     $stmt_select = $mysqli->prepare('SELECT Owner_Name FROM posts WHERE Post_Id=? and Owner_Id=?');
 
                     $stmt_new = $mysqli->prepare('INSERT INTO posts ( Owner_Name,
@@ -79,19 +80,26 @@
                     $stmt_date = $mysqli->prepare('UPDATE owners 
                                                    SET Last_Post_Date = ?
                                                    WHERE Owner_Id=? and Platform=?');
+                    $stmt_array = array(
+                        'select' => $stmt_select,
+                        'new' => $stmt_new,
+                        'update' => $stmt_update,
+                        'date' => $stmt_date                 
+                    );
+                    return $stmt_array;
                 }
 
 //---------------------------------------------------------------------------------------------------------------------------------
-                function update_DB_Instagram($name, $owner_id)
+                function update_DB_Instagram($name, $owner_id, $stmt_array)
                 {
-                    $mysqli = new mysqli(Server, DB_UserName, DB_Password, DB_Name);
+                    
                     $response_array = facebook_api_request($owner_id.'/media?fields=like_count,comments_count,permalink,caption,media_type,timestamp,children,media_url', FACEBOOK_ACCESS_TOKEN);
                     console_log($response_array);
                     $platform = "instagram.com";
                     $max_date = 0;
                     $reposts = -1;
                     
-                    prepares($mysqli, $stmt_select, $stmt_update, $stmt_new, $stmt_date);
+                    
                     
                     
                     foreach ($response_array['data'] as $post)
@@ -129,11 +137,11 @@
                            $srcs = $post['media_url'];
                         }
                        
-                        $stmt_select->bind_param('ss', $post_id, $owner_id);
-                        $stmt_select->execute();
-                        $stmt_select->bind_result($row);
-                        $stmt_select->fetch();
-                        $stmt_select->reset();
+                        $stmt_array['select']->bind_param('ss', $post_id, $owner_id);
+                        $stmt_array['select']->execute();
+                        $stmt_array['select']->bind_result($row);
+                        $stmt_array['select']->fetch();
+                        $stmt_array['select']->reset();
                                                       
                         
                         if(!isset($row))
@@ -142,12 +150,12 @@
                             
                             
                             
-                            if(!$stmt_new->bind_param('ssssssiiiss', $name, $owner_id, $post_id, $message, $date, $link, $likes, $comments, $reposts, $srcs, $platform))
+                            if(!$stmt_array['new']->bind_param('ssssssiiiss', $name, $owner_id, $post_id, $message, $date, $link, $likes, $comments, $reposts, $srcs, $platform))
                             {
                                 echo "Не удалось привязать параметры";
                             }
                             
-                            if(!$stmt_new->execute())
+                            if(!$stmt_array['new']->execute())
                             {
                                 echo "no execute new";
                             }
@@ -155,15 +163,15 @@
                         }
                         else
                         {
-                            $stmt_update->bind_param('siiissss', $post_text, $likes, $comments, $reposts, $srcs, $platform, $post_id, $owner_id);
-                            $stmt_update->execute();
+                            $stmt_array['update']->bind_param('siiissss', $post_text, $likes, $comments, $reposts, $srcs, $platform, $post_id, $owner_id);
+                            $stmt_array['update']->execute();
                         }
                         
                     }
                     $max_date;
                     console_log($max_date);
-                    $stmt_date->bind_param('iss', $max_date, $owner_id, $platform);
-                    if(!$stmt_date->execute())
+                    $stmt_array['date']->bind_param('iss', $max_date, $owner_id, $platform);
+                    if(!$stmt_array['date']->execute())
                             {
                                 echo "no execute date";
                             }
@@ -174,14 +182,12 @@
 
 // ---------------------------------------------------------------------------------------
 
-                function update_DB_Facebook($name, $owner_id)
+                function update_DB_Facebook($name, $owner_id, $stmt_array)
                 {
                     $platform = "facebook.com";
                     $response_array = facebook_api_request($owner_id.'/feed?fields=reactions,comments,shares,attachments,created_time,message', FACEBOOK_ACCESS_TOKEN);
                     
                     $max_date = 0;
-                    $mysqli = new mysqli(Server, DB_UserName, DB_Password, DB_Name);
-                    prepares($mysqli, $stmt_select, $stmt_update, $stmt_new, $stmt_date);
                     foreach($response_array['data'] as $post)
                     {
                        
@@ -243,11 +249,11 @@
                             }
                         }
                         
-                        $stmt_select->bind_param('ss', $post_id, $owner_id);
-                        $stmt_select->execute();
-                        $stmt_select->bind_result($row);
-                        $stmt_select->fetch();
-                        $stmt_select->reset();
+                        $stmt_array['select']->bind_param('ss', $post_id, $owner_id);
+                        $stmt_array['select']->execute();
+                        $stmt_array['select']->bind_result($row);
+                        $stmt_array['select']->fetch();
+                        $stmt_array['select']->reset();
                                                       
                         
                         if(!isset($row))
@@ -255,11 +261,11 @@
                             console_log($date);
                             $str_date = date("Y-n-j", $date);
                                    
-                            if(!$stmt_new->bind_param('ssssssiiiss', $name, $owner_id, $post_id, $message, $str_date, $link, $likes, $comments, $reposts, $srcs, $platform))
+                            if(!$stmt_array['new']->bind_param('ssssssiiiss', $name, $owner_id, $post_id, $message, $str_date, $link, $likes, $comments, $reposts, $srcs, $platform))
                             {
                                 echo "Не удалось привязать параметры";
                             }
-                            if(!$stmt_new->execute())
+                            if(!$stmt_array['new']->execute())
                             {
                                 echo "no execute";
                             }
@@ -269,13 +275,13 @@
                         {
                             
                             console_log("---------------------------------------------------------------");
-                            if(!$stmt_update->bind_param('siiissss', $message, $likes, $comments, $reposts, $srcs, $platform, $post_id, $owner_id))
+                            if(!$stmt_array['update']->bind_param('siiissss', $message, $likes, $comments, $reposts, $srcs, $platform, $post_id, $owner_id))
                             {
                                 console_log("bind err");
                             }
-                            if(!$stmt_update->execute())
+                            if(!$stmt_array['update']->execute())
                             {
-                                console_log($stmt_update->error);
+                                console_log($stmt_array['update']->error);
                             }
                         }
                         
@@ -283,24 +289,22 @@
                     }
                     
                     
-                    if(!$stmt_date->bind_param('iss', $max_date, $owner_id, $platform))
+                    if(!$stmt_array['date']->bind_param('iss', $max_date, $owner_id, $platform))
                     {
                         console_log("no param date");
                     }
                     
-                    if(!$stmt_date->execute())
+                    if(!$stmt_array['date']->execute())
                     {
                         console_log("no exec date");
                     } 
                 }
 
     //------------------------------------------------------------------------------------------------------------------            
-                function update_DB_VK($result, $name)
+                function update_DB_VK($result, $name, $stmt_array)
                 {
                     $platform = "vk.com";
                     console_log($result);
-                    $mysqli = new mysqli(Server, DB_UserName, DB_Password, DB_Name);
-                    prepares($mysqli, $stmt_select, $stmt_update, $stmt_new, $stmt_date);
                     $items = $result -> response -> items;
                     $owner_id = $items[0] -> owner_id;
                     $max_date = 0;
@@ -316,14 +320,14 @@
                         
                         console_log($post->id);
                         console_log($post->owner_id);
-                        $stmt_select->bind_param('ss', $post->id, $post->owner_id);
-                        $stmt_select->bind_result($row);
-                        if(!$stmt_select->execute())
+                        $stmt_array['select']->bind_param('ss', $post->id, $post->owner_id);
+                        $stmt_array['select']->bind_result($row);
+                        if(!$stmt_array['select']->execute())
                         {
                             print("no execute select");
                         } 
-                        $stmt_select->fetch();
-                        $stmt_select->reset();
+                        $stmt_array['select']->fetch();
+                        $stmt_array['select']->reset();
                                
                         if (isset($post->attachments))
                         {
@@ -353,7 +357,7 @@
                             $date = date("Y-n-j", $post->date);
                             $link = 'http://vk.com/wall'.$post->owner_id .'_'. $post->id;
                             
-                            if(!$stmt_new->bind_param('ssssssiiiss', $name, 
+                            if(!$stmt_array['new']->bind_param('ssssssiiiss', $name, 
                                                                      $post->owner_id, 
                                                                      $post->id, 
                                                                      $post->text, 
@@ -368,7 +372,7 @@
                                 echo "Не удалось привязать параметры";
                             }
                             
-                            if(!$stmt_new->execute())
+                            if(!$stmt_array['new']->execute())
                             {
                                 echo "no execute new";
                             }
@@ -378,7 +382,7 @@
                         {
                             
                             
-                            $stmt_update->bind_param('siiissss', $post->text, 
+                            $stmt_array['update']->bind_param('siiissss', $post->text, 
                                                                  $post->likes->count, 
                                                                  $post->comments->count, 
                                                                  $post->reposts->count, 
@@ -387,19 +391,19 @@
                                                                  $post->id, 
                                                                  $post->owner_id);
                             
-                            if(!$stmt_update->execute())
+                            if(!$stmt_array['update']->execute())
                             {
                                 printf("execute update err");
                             }
                         }
                         
                     }
-                    if(!$stmt_date->bind_param('iss', $max_date, $owner_id, $platform))
+                    if(!$stmt_array['date']->bind_param('iss', $max_date, $owner_id, $platform))
                     {
                         console_log("no param date");
                     }
                     
-                    if(!$stmt_date->execute())
+                    if(!$stmt_array['date']->execute())
                     {
                         console_log("no exec date");
                     } 
@@ -411,39 +415,42 @@
                 require_once("config.php");
                 
 
-                $link = mysqli_connect(Server, DB_UserName, DB_Password, DB_Name);
-                
+                $mysqli = new mysqli(Server, DB_UserName, DB_Password, DB_Name);
+                $stmt_array = prepares($mysqli);
                 if (isset($_POST['update']))
                 {
                     $input = explode ("_", key($_POST['update']));
                     $platform = $input[0];
-                    $id = $input[1];
+                    $owner_id = $input[1];
+                    $stmt = $mysqli->prepare('SELECT Owner_Name, Owner_Id
+                                    FROM owners
+                                    where Owner_Id=? and Platform=?');
+                    $stmt->bind_param('ss', $owner_id, $platform);
+                    $stmt->execute();
+                    $stmt->bind_result($row['Owner_Name'], $row['Owner_Id']);
+                    $stmt->fetch();
+                    $stmt->reset();
                     
-                    $sql = 'SELECT *
-                            FROM owners
-                            where Owner_Id='. $id .' and Platform="'.$platform.'"';
-                    $result = mysqli_query($link, $sql);
-                    $row = mysqli_fetch_array($result);
                     switch($platform)
                     {
                         case "vk.com":
                             $request_params = array(
-                                    'owner_id' => $id,
+                                    'owner_id' => $owner_id,
                                     'count' => 5,
                                     'v' => '5.130',
                                     'access_token' => VK_ACCESS_TOKEN
                                 );
                             $params = http_build_query($request_params);
                             $result = vk_request("wall.get", $params);
-                            update_DB_VK($result, $row['Owner_Name']); 
+                            update_DB_VK($result, $row['Owner_Name'], $stmt_array); 
                             break;
                     
                         case "facebook.com":
-                            update_DB_Facebook($row['Owner_Name'], $row['Owner_Id']);
+                            update_DB_Facebook($row['Owner_Name'], $row['Owner_Id'], $stmt_array);
                             break;
                         case "instagram.com":
-                            console_log('insta');
-                            update_DB_Instagram($row['Owner_Name'], $row['Owner_Id']);
+                            
+                            update_DB_Instagram($row['Owner_Name'], $row['Owner_Id'], $stmt_array);
                             break;
                     }
                     
@@ -464,16 +471,16 @@
                 {
                     $input = explode ("_", key($_POST['delete']));
                     $platform = $input[0];
-                    $id = $input[1];
+                    $owner_id = $input[1];
                     
                     $sql = 'DELETE 
                             FROM owners
-                            where Owner_Id='. $id.' and Platform="'.$platform.'"';
+                            where Owner_Id='. $owner_id.' and Platform="'.$platform.'"';
 
                     $result = mysqli_query($link, $sql);
                     $sql = 'DELETE 
                             FROM posts
-                            where Owner_Id='. $id.' and Platform="'.$platform.'"';
+                            where Owner_Id='. $owner_id.' and Platform="'.$platform.'"';
                     $result = mysqli_query($link, $sql);
                     echo '<table>
                     <tr>
